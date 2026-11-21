@@ -1,0 +1,1837 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0f766e">
+  <title>血圧・脈拍記録帳 | 医療・通院提出用</title>
+  <link rel="manifest" href="./manifest.json">
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js for clean medical graphs -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <!-- Google Fonts: Noto Sans JP & Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Font Awesome for crisp medical icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Inter"', '"Noto Sans JP"', 'sans-serif'],
+          },
+          colors: {
+            medical: {
+              50: '#f0fdfa',
+              100: '#ccfbf1',
+              200: '#99f6e4',
+              500: '#14b8a6',
+              600: '#0d9488',
+              700: '#0f766e',
+              800: '#115e59',
+              900: '#134e4a',
+            },
+            slate: {
+              850: '#1e293b',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Base & Mobile App Styling */
+    body {
+      font-family: 'Inter', 'Noto Sans JP', sans-serif;
+      background-color: #f4f7f8;
+      color: #1e293b;
+      -webkit-tap-highlight-color: transparent;
+      overscroll-behavior-y: contain;
+    }
+
+    /* Hide scrollbar for clean mobile feel while preserving scroll */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+
+    /* Input focus ring styling */
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    input[type="number"] {
+      -moz-appearance: textfield;
+    }
+
+    /* Toast Animation */
+    @keyframes slideUpFade {
+      0% { opacity: 0; transform: translate(-50%, 16px); }
+      15% { opacity: 1; transform: translate(-50%, 0); }
+      85% { opacity: 1; transform: translate(-50%, 0); }
+      100% { opacity: 0; transform: translate(-50%, -8px); }
+    }
+    .toast-animate {
+      animation: slideUpFade 2.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    /* ==========================================================================
+       A4 PRINT / PDF EXPORT DEDICATED STYLES (1 Page Exact Fit)
+       ========================================================================== */
+    @media print {
+      body {
+        background: #ffffff !important;
+        color: #0f172a !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+
+      /* Hide entire interactive mobile UI */
+      #app-shell,
+      #print-preview-toolbar,
+      .no-print {
+        display: none !important;
+      }
+
+      /* Show only the dedicated A4 print container */
+      #print-modal {
+        position: static !important;
+        display: block !important;
+        background: #ffffff !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        width: 100% !important;
+        height: auto !important;
+        overflow: visible !important;
+      }
+
+      html, body {
+        width: auto !important;
+        height: auto !important;
+        min-width: 0 !important;
+        overflow: visible !important;
+      }
+
+      /* Sheet wrapper inside the modal: remove phone-centering/clipping */
+      #print-modal > div:not(#print-preview-toolbar) {
+        display: block !important;
+        width: auto !important;
+        padding: 0 !important;
+        overflow: visible !important;
+      }
+
+      #a4-sheet {
+        display: block !important;
+        box-shadow: none !important;
+        border: none !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        transform: none !important;
+      }
+
+      /* Compact table row height so 31 days fit effortlessly on 1 A4 portrait page */
+      .print-table th,
+      .print-table td {
+        padding-top: 2.3px !important;
+        padding-bottom: 2.3px !important;
+        padding-left: 4px !important;
+        padding-right: 4px !important;
+        font-size: 9.2pt !important;
+        line-height: 1.15 !important;
+      }
+
+      /* Fit graph cleanly onto 1 A4 landscape page without overflowing */
+      .print-graph-wrapper {
+        height: 132mm !important;
+        width: 100% !important;
+      }
+    }
+  </style>
+  <!-- Dynamic @page orientation style block (switched between portrait and landscape via JS) -->
+  <style id="dynamic-print-style">
+    @media print {
+      @page {
+        size: A4 portrait;
+        margin: 8mm 10mm;
+      }
+    }
+  </style>
+</head>
+<body class="antialiased selection:bg-medical-200 selection:text-medical-900">
+
+  <!-- ========================================================================
+       MAIN MOBILE APP SHELL
+       ======================================================================== -->
+  <div id="app-shell" class="min-h-screen flex flex-col max-w-lg mx-auto bg-[#f8fafc] shadow-xl border-x border-slate-200/80 relative pb-20">
+
+    <!-- Top App Header -->
+    <header class="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-xl bg-medical-700 text-white flex items-center justify-center shadow-sm">
+          <i class="fa-solid fa-heart-pulse text-lg"></i>
+        </div>
+        <div>
+          <h1 class="text-base font-bold text-slate-800 tracking-tight leading-tight">血圧・脈拍記録帳</h1>
+          <p class="text-[11px] text-slate-500 font-medium">通院提出・日々の健康管理</p>
+        </div>
+      </div>
+
+      <!-- Menu / Export Trigger Button -->
+      <button id="btn-open-menu" type="button" aria-label="データ出力・印刷メニュー"
+        class="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200/80 active:scale-95 text-slate-700 text-xs font-semibold transition">
+        <i class="fa-solid fa-file-export text-medical-700"></i>
+        <span>出力・管理</span>
+      </button>
+    </header>
+
+    <!-- ======================================================================
+         VIEW 1: INPUT SCREEN (入力)
+         ====================================================================== -->
+    <main id="view-input" class="flex-1 px-4 pt-3 pb-6 space-y-4">
+      
+      <!-- Date Selector Card -->
+      <section class="bg-white rounded-2xl p-3 shadow-sm border border-slate-200/80">
+        <div class="flex items-center justify-between gap-2">
+          <button id="btn-prev-day" type="button" class="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 flex items-center justify-center text-slate-600 transition" title="前日">
+            <i class="fa-solid fa-chevron-left"></i>
+          </button>
+
+          <div class="flex-1 flex flex-col items-center">
+            <div class="relative flex items-center justify-center w-full">
+              <input id="input-date" type="date"
+                class="text-center font-bold text-slate-800 text-base bg-transparent border-none focus:outline-none focus:ring-2 focus:ring-medical-500 rounded-lg px-2 py-1 cursor-pointer">
+            </div>
+            <div class="flex items-center gap-2 mt-0.5">
+              <span id="input-date-badge" class="text-[11px] font-medium px-2 py-0.5 rounded-full bg-medical-50 text-medical-700">
+                新規入力
+              </span>
+              <button id="btn-today" type="button" class="text-[11px] text-slate-500 underline hover:text-medical-700">
+                今日へ戻る
+              </button>
+            </div>
+          </div>
+
+          <button id="btn-next-day" type="button" class="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 flex items-center justify-center text-slate-600 transition" title="翌日">
+            <i class="fa-solid fa-chevron-right"></i>
+          </button>
+        </div>
+      </section>
+
+      <!-- Morning Recording Section (朝の記録) -->
+      <section class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80 space-y-3.5">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
+          <div class="flex items-center gap-2">
+            <span class="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center text-sm">
+              <i class="fa-solid fa-sun"></i>
+            </span>
+            <h2 class="font-bold text-slate-800 text-sm">朝の計測</h2>
+          </div>
+          <!-- Morning Auto-Calculated Average Pill -->
+          <div id="morning-avg-display" class="text-xs font-semibold px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600">
+            平均: <span class="text-slate-800 font-bold">-- / --</span> <span class="text-[10px]">mmHg</span>
+          </div>
+        </div>
+
+        <!-- Column Headers -->
+        <div class="grid grid-cols-12 gap-2 text-[11px] font-semibold text-slate-500 text-center px-1">
+          <div class="col-span-2 text-left">回数</div>
+          <div class="col-span-3">最高血圧<span class="block text-[9px] font-normal">(mmHg)</span></div>
+          <div class="col-span-3">最低血圧<span class="block text-[9px] font-normal">(mmHg)</span></div>
+          <div class="col-span-4">脈拍<span class="block text-[9px] font-normal">(bpm)</span></div>
+        </div>
+
+        <!-- Morning 1st Measurement -->
+        <div class="grid grid-cols-12 gap-2 items-center">
+          <div class="col-span-2 text-xs font-bold text-slate-600 pl-1">1回目</div>
+          <div class="col-span-3">
+            <input id="m1-sys" type="number" inputmode="numeric" pattern="[0-9]*" placeholder="125" min="40" max="280"
+              class="bp-input w-full text-center text-base font-bold text-slate-800 bg-slate-50 border border-slate-200 rounded-xl py-2.5 focus:bg-white focus:border-medical-600 focus:ring-2 focus:ring-medical-500/20 outline-none transition">
+          </div>
+          <div class="col-span-3">
+            <input id="m1-dia" type="number" inputmode="numeric" pattern="[0-9]*" placeholder="80" min="30" max="200"
+              class="bp-input w-full text-center text-base font-bold text-slate-800 bg-slate-50 border border-slate-200 rounded-xl py-2.5 focus:bg-white focus:border-medical-600 focus:ring-2 focus:ring-medical-500/20 outline-none transition">
+          </div>
+          <div class="col-span-4">
+            <input id="m1-pul" type="number" inputmode="numeric" pattern="[0-9]*" placeholder="68" min="30" max="220"
+              class="bp-input w-full text-center text-base font-bold text-slate-800 bg-slate-50 border border-slate-200 rounded-xl py-2.5 focus:bg-white focus:border-medical-600 focus:ring-2 focus:ring-medical-500/20 outline-none transition">
+          </div>
+        </div>
+
+        <!-- Morning 2nd Measurement -->
+        <div class="grid grid-cols-12 gap-2 items-center">
+          <div class="col-span-2 text-xs font-bold text-slate-600 pl-1">2回目</div>
+          <div class="col-span-3">
+            <input id="m2-sys" type="number" inputmode="numeric" pattern="[0-9]*" placeholder="122" min="40" max="280"
+              class="bp-input w-full text-center text-base font-bold text-slate-800 bg-slate-50 border border-slate-200 rounded-xl py-2.5 focus:bg-white focus:border-medical-600 focus:ring-2 focus:ring-medical-500/20 outline-none transition">
+          </div>
+          <div class="col-span-3">
+            <input id="m2-dia" type="number" inputmode="numeric" pattern="[0-9]*" placeholder="78" min="30" max="200"
+              class="bp-input w-full text-center text-base font-bold text-slate-800 bg-slate-50 border border-slate-200 rounded-xl py-2.5 focus:bg-white focus:border-medical-600 focus:ring-2 focus:ring-medical-500/20 outline-none transition">
+          </div>
+          <div class="col-span-4">
+            <input id="m2-pul" type="number" inputmode="numeric" pattern="[0-9]*" placeholder="66" min="30" max="220"
+              class="bp-input w-full text-center text-base font-bold text-slate-800 bg-slate-50 border border-slate-200 rounded-xl py-2.5 focus:bg-white focus:border-medical-600 focus:ring-2 focus:ring-medical-500/20 outline-none transition">
+          </div>
+        </div>
+
+        <!-- Weight & Medication (Morning Only) -->
+        <div class="pt-2.5 border-t border-slate-100 grid grid-cols-2 gap-3 items-center">
+          <!-- Weight Input -->
+          <div>
+            <label for="input-weight" class="block text-[11px] font-semibold text-slate-500 mb-1">
+              <i class="fa-solid fa-weight-scale text-slate-400 mr-1"></i>朝の体重 (kg)
+            </label>
+            <input id="input-weight" type="number" inputmode="decimal" step="0.1" placeholder="62.5" min="20" max="250"
+              class="w-full text-center text-base font-bold text-slate-800 bg-slate-50 border border-slate-200 rounded-xl py-2 focus:bg-white focus:border-medical-600 focus:ring-2 focus:ring-medical-500/20 outline-none transition">
+          </div>
+
+          <!-- Medication Checkbox -->
+          <div>
+            <span class="block text-[11px] font-semibold text-slate-500 mb-1">
+              <i class="fa-solid fa-pills text-slate-400 mr-1"></i>お薬の服用
+            </span>
+            <label for="input-med" class="flex items-center justify-center gap-2 w-full py-2 px-3 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer select-none transition has-[:checked]:bg-medical-50 has-[:checked]:border-medical-500 has-[:checked]:text-medical-800">
+              <input id="input-med" type="checkbox" class="w-4 h-4 accent-medical-700 rounded cursor-pointer">
+              <span class="text-sm font-bold">服薬済み</span>
+            </label>
+          </div>
+        </div>
+      </section>
+
+      <!-- Evening Recording Section (夜の記録) -->
+      <section class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80 space-y-3.5">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
+          <div class="flex items-center gap-2">
+            <span class="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center text-sm">
+              <i class="fa-solid fa-moon"></i>
+            </span>
+            <h2 class="font-bold text-slate-800 text-sm">夜の計測</h2>
+          </div>
+          <!-- Evening Auto-Calculated Average Pill -->
+          <div id="evening-avg-display" class="text-xs font-semibold px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600">
+            平均: <span class="text-slate-800 font-bold">-- / --</span> <span class="text-[10px]">mmHg</span>
+          </div>
+        </div>
+
+        <!-- Column Headers -->
+        <div class="grid grid-cols-12 gap-2 text-[11px] font-semibold text-slate-500 text-center px-1">
+          <div class="col-span-2 text-left">回数</div>
+          <div class="col-span-3">最高血圧<span class="block text-[9px] font-normal">(mmHg)</span></div>
+          <div class="col-span-3">最低血圧<span class="block text-[9px] font-normal">(mmHg)</span></div>
+          <div class="col-span-4">脈拍<span class="block text-[9px] font-normal">(bpm)</span></div>
+        </div>
+
+        <!-- Evening 1st Measurement -->
+        <div class="grid grid-cols-12 gap-2 items-center">
+          <div class="col-span-2 text-xs font-bold text-slate-600 pl-1">1回目</div>
+          <div class="col-span-3">
+            <input id="e1-sys" type="number" inputmode="numeric" pattern="[0-9]*" placeholder="128" min="40" max="280"
+              class="bp-input w-full text-center text-base font-bold text-slate-800 bg-slate-50 border border-slate-200 rounded-xl py-2.5 focus:bg-white focus:border-medical-600 focus:ring-2 focus:ring-medical-500/20 outline-none transition">
+          </div>
+          <div class="col-span-3">
+            <input id="e1-dia" type="number" inputmode="numeric" pattern="[0-9]*" placeholder="82" min="30" max="200"
+              class="bp-input w-full text-center text-base font-bold text-slate-800 bg-slate-50 border border-slate-200 rounded-xl py-2.5 focus:bg-white focus:border-medical-600 focus:ring-2 focus:ring-medical-500/20 outline-none transition">
+          </div>
+          <div class="col-span-4">
+            <input id="e1-pul" type="number" inputmode="numeric" pattern="[0-9]*" placeholder="70" min="30" max="220"
+              class="bp-input w-full text-center text-base font-bold text-slate-800 bg-slate-50 border border-slate-200 rounded-xl py-2.5 focus:bg-white focus:border-medical-600 focus:ring-2 focus:ring-medical-500/20 outline-none transition">
+          </div>
+        </div>
+
+        <!-- Evening 2nd Measurement -->
+        <div class="grid grid-cols-12 gap-2 items-center">
+          <div class="col-span-2 text-xs font-bold text-slate-600 pl-1">2回目</div>
+          <div class="col-span-3">
+            <input id="e2-sys" type="number" inputmode="numeric" pattern="[0-9]*" placeholder="124" min="40" max="280"
+              class="bp-input w-full text-center text-base font-bold text-slate-800 bg-slate-50 border border-slate-200 rounded-xl py-2.5 focus:bg-white focus:border-medical-600 focus:ring-2 focus:ring-medical-500/20 outline-none transition">
+          </div>
+          <div class="col-span-3">
+            <input id="e2-dia" type="number" inputmode="numeric" pattern="[0-9]*" placeholder="79" min="30" max="200"
+              class="bp-input w-full text-center text-base font-bold text-slate-800 bg-slate-50 border border-slate-200 rounded-xl py-2.5 focus:bg-white focus:border-medical-600 focus:ring-2 focus:ring-medical-500/20 outline-none transition">
+          </div>
+          <div class="col-span-4">
+            <input id="e2-pul" type="number" inputmode="numeric" pattern="[0-9]*" placeholder="68" min="30" max="220"
+              class="bp-input w-full text-center text-base font-bold text-slate-800 bg-slate-50 border border-slate-200 rounded-xl py-2.5 focus:bg-white focus:border-medical-600 focus:ring-2 focus:ring-medical-500/20 outline-none transition">
+          </div>
+        </div>
+      </section>
+
+      <!-- Save & Delete Actions -->
+      <div class="flex items-center gap-3 pt-1">
+        <button id="btn-delete-record" type="button" class="hidden px-4 py-3.5 rounded-2xl bg-rose-50 hover:bg-rose-100 active:scale-95 text-rose-700 font-semibold text-sm transition">
+          <i class="fa-regular fa-trash-can"></i>
+        </button>
+        <button id="btn-save-record" type="button"
+          class="flex-1 py-3.5 px-6 rounded-2xl bg-medical-700 hover:bg-medical-800 active:scale-[0.99] text-white font-bold text-base shadow-md shadow-medical-700/20 flex items-center justify-center gap-2 transition">
+          <i class="fa-solid fa-check"></i>
+          <span>この日の記録を保存する</span>
+        </button>
+      </div>
+    </main>
+
+    <!-- ======================================================================
+         VIEW 2: GRAPH SCREEN (グラフ)
+         ====================================================================== -->
+    <main id="view-graph" class="hidden flex-1 px-4 pt-3 pb-6 space-y-4">
+      
+      <!-- Month Selector -->
+      <section class="bg-white rounded-2xl p-3 shadow-sm border border-slate-200/80 flex items-center justify-between">
+        <button id="btn-graph-prev-month" type="button" class="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 flex items-center justify-center text-slate-600 transition">
+          <i class="fa-solid fa-chevron-left"></i>
+        </button>
+        <div class="flex items-center gap-2">
+          <i class="fa-regular fa-calendar text-medical-700"></i>
+          <input id="graph-month-picker" type="month" class="font-bold text-slate-800 text-base bg-transparent focus:outline-none cursor-pointer">
+        </div>
+        <button id="btn-graph-next-month" type="button" class="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 flex items-center justify-center text-slate-600 transition">
+          <i class="fa-solid fa-chevron-right"></i>
+        </button>
+      </section>
+
+      <!-- Monthly Summary Averages Card -->
+      <section class="grid grid-cols-3 gap-2.5">
+        <div class="bg-white rounded-2xl p-3 shadow-sm border border-slate-200/80 text-center">
+          <span class="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full mb-1">
+            <i class="fa-solid fa-sun text-[10px]"></i> 朝平均
+          </span>
+          <div id="graph-avg-morning" class="text-sm font-bold text-slate-800">-- / --</div>
+          <div id="graph-pul-morning" class="text-[11px] text-slate-500">脈拍 --</div>
+        </div>
+
+        <div class="bg-white rounded-2xl p-3 shadow-sm border border-slate-200/80 text-center">
+          <span class="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full mb-1">
+            <i class="fa-solid fa-moon text-[10px]"></i> 夜平均
+          </span>
+          <div id="graph-avg-evening" class="text-sm font-bold text-slate-800">-- / --</div>
+          <div id="graph-pul-evening" class="text-[11px] text-slate-500">脈拍 --</div>
+        </div>
+
+        <div class="bg-white rounded-2xl p-3 shadow-sm border border-medical-200 text-center">
+          <span class="inline-flex items-center gap-1 text-[11px] font-semibold text-medical-800 bg-medical-50 px-2 py-0.5 rounded-full mb-1">
+            全体平均
+          </span>
+          <div id="graph-avg-total" class="text-sm font-bold text-medical-800">-- / --</div>
+          <div id="graph-pul-total" class="text-[11px] text-slate-500">脈拍 --</div>
+        </div>
+      </section>
+
+      <!-- Line Chart Container -->
+      <section class="bg-white rounded-2xl p-3.5 shadow-sm border border-slate-200/80">
+        <div class="flex items-center justify-between mb-2">
+          <div>
+            <h2 class="text-sm font-bold text-slate-800">朝・夜平均血圧の推移</h2>
+            <p class="text-[11px] text-slate-500">横軸：各日 朝・夜（2回平均値） / 基準線：135/85 mmHg</p>
+          </div>
+        </div>
+
+        <!-- Horizontal scrollable chart wrapper for crisp readability of 62 time points on mobile -->
+        <div class="overflow-x-auto pb-2">
+          <div class="min-w-[680px] h-[300px] relative">
+            <canvas id="mobile-bp-chart"></canvas>
+          </div>
+        </div>
+        <div class="text-center text-[10px] text-slate-400 mt-1">
+          <i class="fa-solid fa-arrows-left-right mr-1"></i>左右にスワイプして1ヶ月全体の推移を確認できます
+        </div>
+      </section>
+    </main>
+
+    <!-- ======================================================================
+         VIEW 3: LIST SCREEN (一覧)
+         ====================================================================== -->
+    <main id="view-list" class="hidden flex-1 px-4 pt-3 pb-6 space-y-3">
+      
+      <!-- Month Selector -->
+      <section class="bg-white rounded-2xl p-3 shadow-sm border border-slate-200/80 flex items-center justify-between">
+        <button id="btn-list-prev-month" type="button" class="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 flex items-center justify-center text-slate-600 transition">
+          <i class="fa-solid fa-chevron-left"></i>
+        </button>
+        <div class="flex items-center gap-2">
+          <i class="fa-regular fa-calendar-check text-medical-700"></i>
+          <input id="list-month-picker" type="month" class="font-bold text-slate-800 text-base bg-transparent focus:outline-none cursor-pointer">
+        </div>
+        <button id="btn-list-next-month" type="button" class="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 flex items-center justify-center text-slate-600 transition">
+          <i class="fa-solid fa-chevron-right"></i>
+        </button>
+      </section>
+
+      <div class="flex items-center justify-between px-1">
+        <p class="text-xs text-slate-500">
+          <i class="fa-solid fa-hand-pointer text-medical-600 mr-1"></i>日付をタップすると編集できます
+        </p>
+        <span id="list-record-count" class="text-xs font-semibold text-slate-600">記録: 0日</span>
+      </div>
+
+      <!-- List Cards / Table Container -->
+      <section class="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden">
+        <!-- Sticky Table Header -->
+        <div class="grid grid-cols-12 bg-slate-100/90 text-[11px] font-bold text-slate-600 py-2.5 px-3 border-b border-slate-200">
+          <div class="col-span-3">日付</div>
+          <div class="col-span-4 text-center">朝平均 <span class="font-normal text-[9px]">(脈)</span></div>
+          <div class="col-span-4 text-center">夜平均 <span class="font-normal text-[9px]">(脈)</span></div>
+          <div class="col-span-1 text-right">薬/体</div>
+        </div>
+
+        <!-- Dynamic Rows -->
+        <div id="list-rows-container" class="divide-y divide-slate-100">
+          <!-- Populated via JS -->
+        </div>
+      </section>
+    </main>
+
+    <!-- ======================================================================
+         BOTTOM NAVIGATION BAR (3 Tabs: 入力 / グラフ / 一覧)
+         ====================================================================== -->
+    <nav class="fixed bottom-0 left-0 right-0 z-30 max-w-lg mx-auto bg-white/95 backdrop-blur-md border-t border-slate-200 px-2 py-1.5 flex items-center justify-around shadow-[0_-2px_10px_rgba(0,0,0,0.03)]">
+      <button type="button" data-tab="input" class="nav-tab flex-1 flex flex-col items-center justify-center py-1.5 rounded-xl text-medical-700 font-bold transition">
+        <i class="fa-solid fa-pen-to-square text-lg mb-0.5"></i>
+        <span class="text-[11px]">入力</span>
+      </button>
+      <button type="button" data-tab="graph" class="nav-tab flex-1 flex flex-col items-center justify-center py-1.5 rounded-xl text-slate-400 hover:text-slate-600 font-medium transition">
+        <i class="fa-solid fa-chart-line text-lg mb-0.5"></i>
+        <span class="text-[11px]">グラフ</span>
+      </button>
+      <button type="button" data-tab="list" class="nav-tab flex-1 flex flex-col items-center justify-center py-1.5 rounded-xl text-slate-400 hover:text-slate-600 font-medium transition">
+        <i class="fa-solid fa-list-ul text-lg mb-0.5"></i>
+        <span class="text-[11px]">一覧</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- ========================================================================
+       DATA MANAGEMENT & EXPORT MODAL (CSV / PDF / PRINT / DEMO DATA)
+       ======================================================================== -->
+  <div id="menu-modal" class="hidden fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-white w-full max-w-lg rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
+      
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-folder-open text-medical-700 text-lg"></i>
+          <h2 class="text-base font-bold text-slate-800">通院提出用出力・データ管理</h2>
+        </div>
+        <button id="btn-close-menu" type="button" class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <!-- 1. PDF Output / Printout Section (A4 1 Sheet for 31 Days) -->
+      <div class="bg-medical-50/70 border border-medical-200 rounded-2xl p-4 space-y-3">
+        <div class="flex items-start gap-2.5">
+          <div class="w-8 h-8 rounded-lg bg-medical-700 text-white flex items-center justify-center shrink-0 mt-0.5">
+            <i class="fa-solid fa-print"></i>
+          </div>
+          <div>
+            <h3 class="text-sm font-bold text-slate-800">医師提出用 PDF出力・プリントアウト</h3>
+            <p class="text-xs text-slate-600 leading-relaxed mt-0.5">
+              指定した開始日から1ヶ月分（31日間）を<strong>A4用紙1枚</strong>に収まるレイアウトで出力します。
+            </p>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-xl p-3 border border-medical-200/80">
+          <label for="print-start-date" class="block text-xs font-bold text-slate-700 mb-1">
+            出力開始日（この日から31日分を抽出）
+          </label>
+          <input id="print-start-date" type="date"
+            class="w-full font-bold text-slate-800 text-sm bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-medical-600">
+          <p id="print-range-preview" class="text-[11px] text-medical-700 font-medium mt-1.5">
+            対象期間: --
+          </p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2.5 pt-1">
+          <button id="btn-preview-print-list" type="button"
+            class="py-3 px-3 rounded-xl bg-medical-700 hover:bg-medical-800 active:scale-95 text-white font-bold text-xs flex flex-col items-center justify-center gap-1 shadow-sm transition">
+            <i class="fa-solid fa-table-list text-base"></i>
+            <span>一覧表 (A4縦・1枚)</span>
+          </button>
+          <button id="btn-preview-print-graph" type="button"
+            class="py-3 px-3 rounded-xl bg-slate-800 hover:bg-slate-900 active:scale-95 text-white font-bold text-xs flex flex-col items-center justify-center gap-1 shadow-sm transition">
+            <i class="fa-solid fa-chart-area text-base"></i>
+            <span>グラフ (A4横・1枚)</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 2. CSV Import / Export Section -->
+      <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+        <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+          <i class="fa-solid fa-file-csv text-slate-600"></i>
+          <span>CSVデータの書き出し・取込</span>
+        </h3>
+
+        <div class="grid grid-cols-2 gap-2.5">
+          <button id="btn-export-csv" type="button"
+            class="py-2.5 px-3 rounded-xl bg-white border border-slate-300 hover:bg-slate-100 active:scale-95 text-slate-700 font-bold text-xs flex items-center justify-center gap-1.5 transition">
+            <i class="fa-solid fa-download text-medical-700"></i>
+            <span>CSV書き出し</span>
+          </button>
+
+          <label for="input-import-csv"
+            class="py-2.5 px-3 rounded-xl bg-white border border-slate-300 hover:bg-slate-100 active:scale-95 text-slate-700 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition">
+            <i class="fa-solid fa-upload text-medical-700"></i>
+            <span>CSV取込</span>
+            <input id="input-import-csv" type="file" accept=".csv,text/csv" class="hidden">
+          </label>
+        </div>
+
+        <details class="text-[11px] text-slate-500 bg-white rounded-xl p-2.5 border border-slate-200/80">
+          <summary class="font-semibold text-slate-600 cursor-pointer">CSVフォーマット仕様を確認する</summary>
+          <p class="mt-1.5 leading-relaxed">
+            1行目ヘッダー（全20列）：<br>
+            <code class="text-[10px] bg-slate-100 px-1 py-0.5 rounded block overflow-x-auto whitespace-nowrap mt-1">
+              日付,曜日,朝１最高,朝１最低,朝２脈拍,朝２最高,朝２最低,朝２脈拍,朝最高平均,朝最低平均,夜１最高,夜１最低,夜２脈拍,夜２最高,夜２最低,夜２脈拍,夜最高平均,夜最低平均,体重,服薬
+            </code>
+            ※日付は <code class="bg-slate-100 px-1">YYYY-MM-DD</code> または <code class="bg-slate-100 px-1">YYYY/MM/DD</code> に対応。書き出し時は曜日・朝夜平均値を自動計算し、服薬は「済」で出力（取込時は「済」「1」「true」「○」等に対応）します。
+          </p>
+        </details>
+      </div>
+
+      <!-- 3. Sample Data Reset / Clear Data -->
+      <div class="pt-1 border-t border-slate-100 flex items-center justify-between gap-2">
+        <button id="btn-load-sample" type="button"
+          class="text-xs font-semibold text-medical-700 hover:underline py-1.5 px-2">
+          <i class="fa-solid fa-rotate-left mr-1"></i>サンプルデータ再生成
+        </button>
+        <button id="btn-clear-all" type="button"
+          class="text-xs font-semibold text-rose-600 hover:underline py-1.5 px-2">
+          <i class="fa-solid fa-trash mr-1"></i>全データ消去
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       A4 PRINT PREVIEW & PRINT SHEET MODAL
+       ======================================================================== -->
+  <div id="print-modal" class="hidden fixed inset-0 z-50 bg-slate-900/85 overflow-y-auto flex flex-col items-center">
+    
+    <!-- Floating Toolbar (Hidden when printing) -->
+    <div id="print-preview-toolbar" class="no-print sticky top-0 z-10 w-full bg-slate-900 text-white px-4 py-3 flex items-center justify-between border-b border-slate-700 shadow-lg">
+      <button id="btn-close-print" type="button" class="flex items-center gap-1.5 text-xs font-bold bg-slate-800 hover:bg-slate-700 px-3 py-2 rounded-xl transition">
+        <i class="fa-solid fa-arrow-left"></i>
+        <span>戻る</span>
+      </button>
+
+      <div class="text-center">
+        <span id="print-mode-label" class="text-xs font-bold text-medical-300 block">A4印刷プレビュー</span>
+        <span class="text-[10px] text-slate-400">Chromeメニュー「PDFとして保存」対応</span>
+      </div>
+
+      <button id="btn-execute-print" type="button" class="flex items-center gap-1.5 text-xs font-bold bg-medical-600 hover:bg-medical-500 text-white px-4 py-2 rounded-xl shadow transition">
+        <i class="fa-solid fa-print"></i>
+        <span>印刷 / PDF保存</span>
+      </button>
+    </div>
+
+    <!-- A4 Paper Sheet Container (210mm x 297mm proportion) -->
+    <div class="p-3 sm:p-6 w-full flex justify-center overflow-x-auto">
+      <div id="a4-sheet" class="bg-white text-slate-900 w-[210mm] min-h-[297mm] p-[10mm] shadow-2xl box-border flex flex-col justify-between">
+        
+        <!-- A4 Document Header -->
+        <div>
+          <div class="flex items-end justify-between border-b-2 border-slate-800 pb-2 mb-2.5">
+            <div>
+              <h1 id="a4-doc-title" class="text-xl font-bold tracking-wider text-slate-900">血圧・脈拍記録表（通院提出用）</h1>
+              <p id="a4-doc-period" class="text-xs font-semibold text-slate-700 mt-0.5">対象期間: ----年--月--日 ～ ----年--月--日（31日間）</p>
+            </div>
+            <div class="text-right text-xs text-slate-700 space-y-1">
+              <div class="border-b border-slate-400 pb-0.5 min-w-[140px] text-left">氏名：</div>
+              <div class="text-[10px] text-slate-500">出力日：<span id="a4-print-date"></span></div>
+            </div>
+          </div>
+
+          <!-- Period Summary Bar on A4 -->
+          <div class="grid grid-cols-4 gap-2 bg-slate-100 border border-slate-300 rounded px-3 py-1.5 mb-2.5 text-xs">
+            <div>
+              <span class="text-slate-600 text-[10px] block">期間 朝平均 (最高/最低・脈)</span>
+              <strong id="a4-sum-morning" class="text-slate-900">-- / -- mmHg (--)</strong>
+            </div>
+            <div>
+              <span class="text-slate-600 text-[10px] block">期間 夜平均 (最高/最低・脈)</span>
+              <strong id="a4-sum-evening" class="text-slate-900">-- / -- mmHg (--)</strong>
+            </div>
+            <div>
+              <span class="text-slate-600 text-[10px] block">期間 全体平均</span>
+              <strong id="a4-sum-total" class="text-slate-900">-- / -- mmHg (--)</strong>
+            </div>
+            <div>
+              <span class="text-slate-600 text-[10px] block">服薬率 / 平均体重</span>
+              <strong id="a4-sum-extra" class="text-slate-900">--% / -- kg</strong>
+            </div>
+          </div>
+
+          <!-- A4 CONTENT MODE A: 31-DAY TABLE -->
+          <div id="a4-table-container">
+            <table class="print-table w-full border-collapse border border-slate-400 text-[10px] text-center">
+              <thead>
+                <tr class="bg-slate-200 text-slate-800 font-bold">
+                  <th rowspan="2" class="border border-slate-400 w-[13%]">月日(曜)</th>
+                  <th colspan="3" class="border border-slate-400 bg-amber-50/70">朝の計測 (mmHg / bpm)</th>
+                  <th colspan="3" class="border border-slate-400 bg-indigo-50/70">夜の計測 (mmHg / bpm)</th>
+                  <th rowspan="2" class="border border-slate-400 w-[8%]">体重<br><span class="font-normal text-[8px]">(kg)</span></th>
+                  <th rowspan="2" class="border border-slate-400 w-[6%]">服薬</th>
+                </tr>
+                <tr class="bg-slate-100 text-slate-700 font-semibold text-[9px]">
+                  <th class="border border-slate-400 w-[11%]">1回目</th>
+                  <th class="border border-slate-400 w-[11%]">2回目</th>
+                  <th class="border border-slate-400 w-[13%] bg-amber-100/60">朝平均</th>
+                  <th class="border border-slate-400 w-[11%]">1回目</th>
+                  <th class="border border-slate-400 w-[11%]">2回目</th>
+                  <th class="border border-slate-400 w-[13%] bg-indigo-100/60">夜平均</th>
+                </tr>
+              </thead>
+              <tbody id="a4-table-body">
+                <!-- 31 rows injected via JS -->
+              </tbody>
+            </table>
+          </div>
+
+          <!-- A4 CONTENT MODE B: 31-DAY GRAPH -->
+          <div id="a4-graph-container" class="hidden pt-1">
+            <div class="border border-slate-300 rounded p-2.5 bg-white">
+              <div class="flex items-center justify-between text-[11px] text-slate-600 mb-1.5">
+                <span>※各日の「朝2回平均」「夜2回平均」を時系列にプロット（点線は家庭高血圧基準 135/85 mmHg）</span>
+              </div>
+              <div class="print-graph-wrapper relative w-full h-[450px]">
+                <canvas id="a4-print-chart"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- A4 Footer Notes -->
+        <div class="mt-2 pt-1.5 border-t border-slate-300 flex items-center justify-between text-[9px] text-slate-500">
+          <span>※平均値は各時間帯の1回目・2回目の計測値より自動算出 / <strong class="text-red-600 font-bold">赤字</strong>は家庭血圧基準値（135/85 mmHg以上）超過</span>
+          <span>家庭血圧基準目安：135 / 85 mmHg 未満</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       CUSTOM CONFIRMATION MODAL (No native alert/confirm)
+       ======================================================================== -->
+  <div id="confirm-modal" class="hidden fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-sm w-full p-5 shadow-xl space-y-4">
+      <h3 id="confirm-title" class="text-base font-bold text-slate-800">確認</h3>
+      <p id="confirm-message" class="text-sm text-slate-600 leading-relaxed"></p>
+      <div class="flex justify-end gap-2.5 pt-2">
+        <button id="btn-confirm-cancel" type="button" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-sm">
+          キャンセル
+        </button>
+        <button id="btn-confirm-ok" type="button" class="px-4 py-2 rounded-xl bg-medical-700 hover:bg-medical-800 text-white font-semibold text-sm">
+          実行する
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 pointer-events-none"></div>
+
+  <!-- ========================================================================
+       APPLICATION LOGIC (Vanilla JS, LocalStorage, Chart.js, CSV, A4 Print)
+       ======================================================================== -->
+  <script>
+    (() => {
+      'use strict';
+
+      const STORAGE_KEY = 'bp_tracker_records_v1';
+      const WEEKDAYS_JA = ['日', '月', '火', '水', '木', '金', '土'];
+
+      // Application State
+      let recordsMap = {}; // Key: "YYYY-MM-DD", Value: record object
+      let activeTab = 'input';
+      let mobileChartInstance = null;
+      let printChartInstance = null;
+      let currentPrintLandscape = false;
+      let originalViewportContent = null;
+      let confirmCallback = null;
+
+      // ----------------------------------------------------------------------
+      // DATE & MATH UTILITIES
+      // ----------------------------------------------------------------------
+      function formatDateISO(dateObj) {
+        const y = dateObj.getFullYear();
+        const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const d = String(dateObj.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+      }
+
+      function parseDateISO(isoStr) {
+        const [y, m, d] = isoStr.split('-').map(Number);
+        return new Date(y, m - 1, d);
+      }
+
+      function addDaysISO(isoStr, deltaDays) {
+        const d = parseDateISO(isoStr);
+        d.setDate(d.getDate() + deltaDays);
+        return formatDateISO(d);
+      }
+
+      function formatMonthISO(dateObj) {
+        const y = dateObj.getFullYear();
+        const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+        return `${y}-${m}`;
+      }
+
+      function shiftMonth(monthStr, deltaMonths) {
+        const [y, m] = monthStr.split('-').map(Number);
+        const d = new Date(y, m - 1 + deltaMonths, 1);
+        return formatMonthISO(d);
+      }
+
+      function getDaysInMonth(monthStr) {
+        const [y, m] = monthStr.split('-').map(Number);
+        return new Date(y, m, 0).getDate();
+      }
+
+      function calcAvg(v1, v2) {
+        const n1 = (v1 !== '' && v1 !== null && v1 !== undefined && !isNaN(Number(v1))) ? Number(v1) : null;
+        const n2 = (v2 !== '' && v2 !== null && v2 !== undefined && !isNaN(Number(v2))) ? Number(v2) : null;
+        if (n1 !== null && n2 !== null) return Math.round((n1 + n2) / 2);
+        if (n1 !== null) return Math.round(n1);
+        if (n2 !== null) return Math.round(n2);
+        return null;
+      }
+
+      function computeSessionSummary(rec, prefix) {
+        const sys = calcAvg(rec[`${prefix}1_sys`], rec[`${prefix}2_sys`]);
+        const dia = calcAvg(rec[`${prefix}1_dia`], rec[`${prefix}2_dia`]);
+        const pul = calcAvg(rec[`${prefix}1_pul`], rec[`${prefix}2_pul`]);
+        return { sys, dia, pul };
+      }
+
+      // ----------------------------------------------------------------------
+      // TOAST & CONFIRMATION MODAL
+      // ----------------------------------------------------------------------
+      function showToast(message, type = 'success') {
+        const container = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        const bgClass = type === 'error' ? 'bg-rose-700' : 'bg-slate-800';
+        const iconClass = type === 'error' ? 'fa-circle-exclamation text-rose-200' : 'fa-circle-check text-medical-400';
+
+        toast.className = `toast-animate ${bgClass} text-white px-4 py-2.5 rounded-full shadow-lg text-xs font-bold flex items-center gap-2 whitespace-nowrap`;
+        toast.innerHTML = `<i class="fa-solid ${iconClass}"></i><span>${message}</span>`;
+        container.innerHTML = '';
+        container.appendChild(toast);
+      }
+
+      function openConfirm(title, message, onConfirm, isDanger = false) {
+        document.getElementById('confirm-title').textContent = title;
+        document.getElementById('confirm-message').textContent = message;
+        const okBtn = document.getElementById('btn-confirm-ok');
+        okBtn.className = isDanger
+          ? 'px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold text-sm'
+          : 'px-4 py-2 rounded-xl bg-medical-700 hover:bg-medical-800 text-white font-semibold text-sm';
+        confirmCallback = onConfirm;
+        document.getElementById('confirm-modal').classList.remove('hidden');
+      }
+
+      function closeConfirm() {
+        document.getElementById('confirm-modal').classList.add('hidden');
+        confirmCallback = null;
+      }
+
+      // ----------------------------------------------------------------------
+      // STORAGE & REALISTIC DEMO DATA PRESET
+      // ----------------------------------------------------------------------
+      function loadRecords() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (raw) {
+            recordsMap = JSON.parse(raw) || {};
+          } else {
+            generateRealisticDemoData();
+          }
+        } catch (e) {
+          console.error('Failed to load records:', e);
+          recordsMap = {};
+        }
+      }
+
+      function saveRecordsToStorage() {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(recordsMap));
+        } catch (e) {
+          showToast('保存容量のエラーが発生しました', 'error');
+        }
+      }
+
+      function generateRealisticDemoData() {
+        const today = new Date();
+        const generated = {};
+        let baseWeight = 63.4;
+
+        // Generate 35 days of realistic home blood pressure logs up to yesterday
+        for (let i = 35; i >= 1; i--) {
+          const d = new Date(today);
+          d.setDate(today.getDate() - i);
+          const iso = formatDateISO(d);
+
+          // Slight natural variation (mildly controlled hypertension around 126-138 / 78-86)
+          const wave = Math.sin(i * 0.45) * 5;
+          const m1s = Math.round(131 + wave + (Math.random() * 6 - 3));
+          const m2s = m1s - Math.round(Math.random() * 4);
+          const m1d = Math.round(82 + wave * 0.5 + (Math.random() * 4 - 2));
+          const m2d = m1d - Math.round(Math.random() * 3);
+          const m1p = Math.round(66 + (Math.random() * 6 - 3));
+          const m2p = m1p + Math.round(Math.random() * 3 - 1);
+
+          const e1s = Math.round(127 + wave * 0.8 + (Math.random() * 6 - 3));
+          const e2s = e1s - Math.round(Math.random() * 4);
+          const e1d = Math.round(79 + wave * 0.4 + (Math.random() * 4 - 2));
+          const e2d = e1d - Math.round(Math.random() * 3);
+          const e1p = Math.round(70 + (Math.random() * 6 - 3));
+          const e2p = e1p + Math.round(Math.random() * 3 - 1);
+
+          baseWeight = Math.round((baseWeight + (Math.random() * 0.3 - 0.15)) * 10) / 10;
+
+          generated[iso] = {
+            date: iso,
+            m1_sys: m1s, m1_dia: m1d, m1_pul: m1p,
+            m2_sys: m2s, m2_dia: m2d, m2_pul: m2p,
+            e1_sys: e1s, e1_dia: e1d, e1_pul: e1p,
+            e2_sys: e2s, e2_dia: e2d, e2_pul: e2p,
+            weight: baseWeight,
+            med: i % 14 !== 0 // Almost daily adherence
+          };
+        }
+        recordsMap = generated;
+        saveRecordsToStorage();
+      }
+
+      // ----------------------------------------------------------------------
+      // TAB NAVIGATION
+      // ----------------------------------------------------------------------
+      function switchTab(tabName) {
+        activeTab = tabName;
+        document.getElementById('view-input').classList.toggle('hidden', tabName !== 'input');
+        document.getElementById('view-graph').classList.toggle('hidden', tabName !== 'graph');
+        document.getElementById('view-list').classList.toggle('hidden', tabName !== 'list');
+
+        document.querySelectorAll('.nav-tab').forEach(btn => {
+          const isTarget = btn.dataset.tab === tabName;
+          btn.classList.toggle('text-medical-700', isTarget);
+          btn.classList.toggle('font-bold', isTarget);
+          btn.classList.toggle('text-slate-400', !isTarget);
+          btn.classList.toggle('font-medium', !isTarget);
+        });
+
+        if (tabName === 'graph') {
+          renderGraphView();
+        } else if (tabName === 'list') {
+          renderListView();
+        }
+      }
+
+      // ----------------------------------------------------------------------
+      // VIEW 1: INPUT SCREEN LOGIC
+      // ----------------------------------------------------------------------
+      const inputFields = [
+        'm1-sys', 'm1-dia', 'm1-pul',
+        'm2-sys', 'm2-dia', 'm2-pul',
+        'e1-sys', 'e1-dia', 'e1-pul',
+        'e2-sys', 'e2-dia', 'e2-pul',
+        'input-weight'
+      ];
+
+      function updateLiveAverages() {
+        const mSys = calcAvg(document.getElementById('m1-sys').value, document.getElementById('m2-sys').value);
+        const mDia = calcAvg(document.getElementById('m1-dia').value, document.getElementById('m2-dia').value);
+        const mPul = calcAvg(document.getElementById('m1-pul').value, document.getElementById('m2-pul').value);
+
+        const mDisp = document.getElementById('morning-avg-display');
+        if (mSys !== null || mDia !== null) {
+          mDisp.innerHTML = `平均: <span class="text-slate-900 font-bold">${mSys ?? '--'} / ${mDia ?? '--'}</span> <span class="text-[10px]">${mPul ? `(脈${mPul})` : 'mmHg'}</span>`;
+        } else {
+          mDisp.innerHTML = `平均: <span class="text-slate-800 font-bold">-- / --</span> <span class="text-[10px]">mmHg</span>`;
+        }
+
+        const eSys = calcAvg(document.getElementById('e1-sys').value, document.getElementById('e2-sys').value);
+        const eDia = calcAvg(document.getElementById('e1-dia').value, document.getElementById('e2-dia').value);
+        const ePul = calcAvg(document.getElementById('e1-pul').value, document.getElementById('e2-pul').value);
+
+        const eDisp = document.getElementById('evening-avg-display');
+        if (eSys !== null || eDia !== null) {
+          eDisp.innerHTML = `平均: <span class="text-slate-900 font-bold">${eSys ?? '--'} / ${eDia ?? '--'}</span> <span class="text-[10px]">${ePul ? `(脈${ePul})` : 'mmHg'}</span>`;
+        } else {
+          eDisp.innerHTML = `平均: <span class="text-slate-800 font-bold">-- / --</span> <span class="text-[10px]">mmHg</span>`;
+        }
+      }
+
+      function loadDateIntoForm(dateStr) {
+        document.getElementById('input-date').value = dateStr;
+        const rec = recordsMap[dateStr];
+        const badge = document.getElementById('input-date-badge');
+        const delBtn = document.getElementById('btn-delete-record');
+
+        if (rec) {
+          document.getElementById('m1-sys').value = rec.m1_sys ?? '';
+          document.getElementById('m1-dia').value = rec.m1_dia ?? '';
+          document.getElementById('m1-pul').value = rec.m1_pul ?? '';
+          document.getElementById('m2-sys').value = rec.m2_sys ?? '';
+          document.getElementById('m2-dia').value = rec.m2_dia ?? '';
+          document.getElementById('m2-pul').value = rec.m2_pul ?? '';
+
+          document.getElementById('e1-sys').value = rec.e1_sys ?? '';
+          document.getElementById('e1-dia').value = rec.e1_dia ?? '';
+          document.getElementById('e1-pul').value = rec.e1_pul ?? '';
+          document.getElementById('e2-sys').value = rec.e2_sys ?? '';
+          document.getElementById('e2-dia').value = rec.e2_dia ?? '';
+          document.getElementById('e2-pul').value = rec.e2_pul ?? '';
+
+          document.getElementById('input-weight').value = rec.weight ?? '';
+          document.getElementById('input-med').checked = Boolean(rec.med);
+
+          badge.textContent = '記録済み（編集モード）';
+          badge.className = 'text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700';
+          delBtn.classList.remove('hidden');
+        } else {
+          inputFields.forEach(id => { document.getElementById(id).value = ''; });
+          document.getElementById('input-med').checked = false;
+
+          badge.textContent = '新規入力';
+          badge.className = 'text-[11px] font-medium px-2 py-0.5 rounded-full bg-medical-50 text-medical-700';
+          delBtn.classList.add('hidden');
+        }
+        updateLiveAverages();
+      }
+
+      function handleSaveCurrentForm() {
+        const dateStr = document.getElementById('input-date').value;
+        if (!dateStr) {
+          showToast('日付を選択してください', 'error');
+          return;
+        }
+
+        const getNum = (id) => {
+          const val = document.getElementById(id).value.trim();
+          return val === '' ? null : Number(val);
+        };
+
+        const record = {
+          date: dateStr,
+          m1_sys: getNum('m1-sys'), m1_dia: getNum('m1-dia'), m1_pul: getNum('m1-pul'),
+          m2_sys: getNum('m2-sys'), m2_dia: getNum('m2-dia'), m2_pul: getNum('m2-pul'),
+          e1_sys: getNum('e1-sys'), e1_dia: getNum('e1-dia'), e1_pul: getNum('e1-pul'),
+          e2_sys: getNum('e2-sys'), e2_dia: getNum('e2-dia'), e2_pul: getNum('e2-pul'),
+          weight: getNum('input-weight'),
+          med: document.getElementById('input-med').checked
+        };
+
+        const hasAnyValue = Object.entries(record).some(([k, v]) => k !== 'date' && k !== 'med' && v !== null) || record.med;
+        if (!hasAnyValue) {
+          showToast('少なくとも1項目以上入力してください', 'error');
+          return;
+        }
+
+        recordsMap[dateStr] = record;
+        saveRecordsToStorage();
+        loadDateIntoForm(dateStr);
+        showToast(`${dateStr.replace(/-/g, '/')} の記録を保存しました`);
+      }
+
+      // ----------------------------------------------------------------------
+      // PERIOD STATISTICS & CHART BUILDER (Used by both Mobile & A4 Print)
+      // ----------------------------------------------------------------------
+      function buildPeriodData(dateList) {
+        const labels = [];
+        const sysData = [];
+        const diaData = [];
+
+        let mSysSum = 0, mDiaSum = 0, mPulSum = 0, mCount = 0, mPulCount = 0;
+        let eSysSum = 0, eDiaSum = 0, ePulSum = 0, eCount = 0, ePulCount = 0;
+        let weightSum = 0, weightCount = 0;
+        let medCount = 0, recordedDaysCount = 0;
+
+        dateList.forEach(iso => {
+          const d = parseDateISO(iso);
+          const dayLabel = `${d.getDate()}日`;
+          const rec = recordsMap[iso];
+
+          if (rec) {
+            recordedDaysCount++;
+            if (rec.med) medCount++;
+            if (rec.weight !== null && rec.weight !== undefined) {
+              weightSum += Number(rec.weight);
+              weightCount++;
+            }
+          }
+
+          // Morning point
+          labels.push(`${dayLabel} 朝`);
+          if (rec) {
+            const mAvg = computeSessionSummary(rec, 'm');
+            sysData.push(mAvg.sys);
+            diaData.push(mAvg.dia);
+            if (mAvg.sys !== null && mAvg.dia !== null) {
+              mSysSum += mAvg.sys;
+              mDiaSum += mAvg.dia;
+              mCount++;
+            }
+            if (mAvg.pul !== null) {
+              mPulSum += mAvg.pul;
+              mPulCount++;
+            }
+          } else {
+            sysData.push(null);
+            diaData.push(null);
+          }
+
+          // Evening point
+          labels.push(`${dayLabel} 夜`);
+          if (rec) {
+            const eAvg = computeSessionSummary(rec, 'e');
+            sysData.push(eAvg.sys);
+            diaData.push(eAvg.dia);
+            if (eAvg.sys !== null && eAvg.dia !== null) {
+              eSysSum += eAvg.sys;
+              eDiaSum += eAvg.dia;
+              eCount++;
+            }
+            if (eAvg.pul !== null) {
+              ePulSum += eAvg.pul;
+              ePulCount++;
+            }
+          } else {
+            sysData.push(null);
+            diaData.push(null);
+          }
+        });
+
+        const morningAvg = mCount > 0 ? {
+          sys: Math.round(mSysSum / mCount),
+          dia: Math.round(mDiaSum / mCount),
+          pul: mPulCount > 0 ? Math.round(mPulSum / mPulCount) : null
+        } : null;
+
+        const eveningAvg = eCount > 0 ? {
+          sys: Math.round(eSysSum / eCount),
+          dia: Math.round(eDiaSum / eCount),
+          pul: ePulCount > 0 ? Math.round(ePulSum / ePulCount) : null
+        } : null;
+
+        const totalCount = mCount + eCount;
+        const totalPulCount = mPulCount + ePulCount;
+        const totalAvg = totalCount > 0 ? {
+          sys: Math.round((mSysSum + eSysSum) / totalCount),
+          dia: Math.round((mDiaSum + eDiaSum) / totalCount),
+          pul: totalPulCount > 0 ? Math.round((mPulSum + ePulSum) / totalPulCount) : null
+        } : null;
+
+        return {
+          labels,
+          sysData,
+          diaData,
+          morningAvg,
+          eveningAvg,
+          totalAvg,
+          avgWeight: weightCount > 0 ? (weightSum / weightCount).toFixed(1) : null,
+          medRate: recordedDaysCount > 0 ? Math.round((medCount / recordedDaysCount) * 100) : null
+        };
+      }
+
+      // Custom Chart.js Plugin for 135/85 mmHg Reference Lines
+      const thresholdLinesPlugin = {
+        id: 'thresholdLines',
+        beforeDatasetsDraw(chart) {
+          const { ctx, chartArea: { left, right }, scales: { y } } = chart;
+          if (!y) return;
+
+          ctx.save();
+          // 135 mmHg Systolic Reference Line
+          const y135 = y.getPixelForValue(135);
+          if (y135 >= chart.chartArea.top && y135 <= chart.chartArea.bottom) {
+            ctx.beginPath();
+            ctx.setLineDash([4, 4]);
+            ctx.lineWidth = 1.2;
+            ctx.strokeStyle = 'rgba(225, 29, 72, 0.45)';
+            ctx.moveTo(left, y135);
+            ctx.lineTo(right, y135);
+            ctx.stroke();
+          }
+
+          // 85 mmHg Diastolic Reference Line
+          const y85 = y.getPixelForValue(85);
+          if (y85 >= chart.chartArea.top && y85 <= chart.chartArea.bottom) {
+            ctx.beginPath();
+            ctx.setLineDash([4, 4]);
+            ctx.lineWidth = 1.2;
+            ctx.strokeStyle = 'rgba(13, 148, 136, 0.45)';
+            ctx.moveTo(left, y85);
+            ctx.lineTo(right, y85);
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
+      };
+
+      function createBPChart(canvasEl, periodData, isPrintMode = false) {
+        const ctx = canvasEl.getContext('2d');
+        return new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: periodData.labels,
+            datasets: [
+              {
+                label: '最高血圧 (収縮期)',
+                data: periodData.sysData,
+                borderColor: '#be123c',
+                backgroundColor: '#be123c',
+                borderWidth: isPrintMode ? 1.8 : 2,
+                pointRadius: isPrintMode ? 2.5 : 3.5,
+                pointHoverRadius: 5,
+                spanGaps: true,
+                tension: 0.15
+              },
+              {
+                label: '最低血圧 (拡張期)',
+                data: periodData.diaData,
+                borderColor: '#0f766e',
+                backgroundColor: '#0f766e',
+                borderWidth: isPrintMode ? 1.8 : 2,
+                pointRadius: isPrintMode ? 2.5 : 3.5,
+                pointHoverRadius: 5,
+                spanGaps: true,
+                tension: 0.15
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: isPrintMode ? false : { duration: 300 },
+            interaction: {
+              mode: 'index',
+              intersect: false
+            },
+            plugins: {
+              legend: {
+                position: 'top',
+                labels: {
+                  boxWidth: 12,
+                  font: { size: isPrintMode ? 11 : 12, family: "'Inter', 'Noto Sans JP', sans-serif" }
+                }
+              },
+              tooltip: {
+                callbacks: {
+                  label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y} mmHg`
+                }
+              }
+            },
+            scales: {
+              x: {
+                ticks: {
+                  maxRotation: isPrintMode ? 55 : 65,
+                  minRotation: isPrintMode ? 55 : 65,
+                  autoSkip: false,
+                  font: { size: isPrintMode ? 8.5 : 10 },
+                  callback: function(val, index) {
+                    return this.getLabelForValue(val);
+                  }
+                },
+                grid: {
+                  color: (ctx) => ctx.index % 2 === 0 ? 'rgba(148, 163, 184, 0.25)' : 'rgba(148, 163, 184, 0.08)'
+                }
+              },
+              y: {
+                min: 40,
+                max: 200,
+                ticks: {
+                  stepSize: 20,
+                  font: { size: isPrintMode ? 10 : 11 }
+                },
+                title: {
+                  display: true,
+                  text: '血圧値 (mmHg)',
+                  font: { size: 11, weight: 'bold' }
+                }
+              }
+            }
+          },
+          plugins: [thresholdLinesPlugin]
+        });
+      }
+
+      // ----------------------------------------------------------------------
+      // VIEW 2: GRAPH SCREEN RENDERING
+      // ----------------------------------------------------------------------
+      function renderGraphView() {
+        const monthStr = document.getElementById('graph-month-picker').value;
+        if (!monthStr) return;
+
+        // Sync list month picker as well for convenience
+        document.getElementById('list-month-picker').value = monthStr;
+
+        const daysInMonth = getDaysInMonth(monthStr);
+        const dateList = [];
+        for (let d = 1; d <= daysInMonth; d++) {
+          dateList.push(`${monthStr}-${String(d).padStart(2, '0')}`);
+        }
+
+        const stats = buildPeriodData(dateList);
+
+        // Update Summary Cards
+        document.getElementById('graph-avg-morning').textContent = stats.morningAvg ? `${stats.morningAvg.sys} / ${stats.morningAvg.dia}` : '-- / --';
+        document.getElementById('graph-pul-morning').textContent = stats.morningAvg?.pul ? `脈拍 ${stats.morningAvg.pul}` : '脈拍 --';
+
+        document.getElementById('graph-avg-evening').textContent = stats.eveningAvg ? `${stats.eveningAvg.sys} / ${stats.eveningAvg.dia}` : '-- / --';
+        document.getElementById('graph-pul-evening').textContent = stats.eveningAvg?.pul ? `脈拍 ${stats.eveningAvg.pul}` : '脈拍 --';
+
+        document.getElementById('graph-avg-total').textContent = stats.totalAvg ? `${stats.totalAvg.sys} / ${stats.totalAvg.dia}` : '-- / --';
+        document.getElementById('graph-pul-total').textContent = stats.totalAvg?.pul ? `脈拍 ${stats.totalAvg.pul}` : '脈拍 --';
+
+        if (mobileChartInstance) {
+          mobileChartInstance.destroy();
+        }
+        const canvas = document.getElementById('mobile-bp-chart');
+        mobileChartInstance = createBPChart(canvas, stats, false);
+      }
+
+      // ----------------------------------------------------------------------
+      // VIEW 3: LIST SCREEN RENDERING
+      // ----------------------------------------------------------------------
+      function renderListView() {
+        const monthStr = document.getElementById('list-month-picker').value;
+        if (!monthStr) return;
+
+        document.getElementById('graph-month-picker').value = monthStr;
+
+        const daysInMonth = getDaysInMonth(monthStr);
+        const container = document.getElementById('list-rows-container');
+        container.innerHTML = '';
+
+        let recordedCount = 0;
+
+        for (let d = 1; d <= daysInMonth; d++) {
+          const iso = `${monthStr}-${String(d).padStart(2, '0')}`;
+          const dateObj = parseDateISO(iso);
+          const dow = dateObj.getDay();
+          const dowStr = WEEKDAYS_JA[dow];
+          const rec = recordsMap[iso];
+          if (rec) recordedCount++;
+
+          const dowColor = dow === 0 ? 'text-rose-600' : (dow === 6 ? 'text-sky-600' : 'text-slate-500');
+
+          let mHtml = '<span class="text-slate-300">-- / --</span>';
+          let eHtml = '<span class="text-slate-300">-- / --</span>';
+          let extraHtml = '<span class="text-slate-300 text-[10px]">-</span>';
+
+          if (rec) {
+            const mAvg = computeSessionSummary(rec, 'm');
+            const eAvg = computeSessionSummary(rec, 'e');
+
+            if (mAvg.sys !== null || mAvg.dia !== null) {
+              const highFlag = (mAvg.sys >= 135 || mAvg.dia >= 85) ? 'text-rose-700 font-bold' : 'text-slate-800 font-bold';
+              mHtml = `<span class="${highFlag}">${mAvg.sys ?? '--'}/${mAvg.dia ?? '--'}</span> <span class="text-[10px] text-slate-500">${mAvg.pul ? `(${mAvg.pul})` : ''}</span>`;
+            }
+
+            if (eAvg.sys !== null || eAvg.dia !== null) {
+              const highFlag = (eAvg.sys >= 135 || eAvg.dia >= 85) ? 'text-rose-700 font-bold' : 'text-slate-800 font-bold';
+              eHtml = `<span class="${highFlag}">${eAvg.sys ?? '--'}/${eAvg.dia ?? '--'}</span> <span class="text-[10px] text-slate-500">${eAvg.pul ? `(${eAvg.pul})` : ''}</span>`;
+            }
+
+            const medBadge = rec.med
+              ? `<span class="inline-block w-4 h-4 rounded-full bg-medical-100 text-medical-700 text-[10px] leading-4 text-center font-bold" title="服薬済み">薬</span>`
+              : `<span class="inline-block w-4 h-4 text-[10px] text-slate-300 text-center">-</span>`;
+            const wText = rec.weight ? `<span class="block text-[9px] text-slate-500">${rec.weight}k</span>` : '';
+            extraHtml = `${medBadge}${wText}`;
+          }
+
+          const row = document.createElement('button');
+          row.type = 'button';
+          row.className = 'w-full grid grid-cols-12 items-center py-2.5 px-3 text-left hover:bg-medical-50/60 active:bg-medical-100/60 transition';
+          row.innerHTML = `
+            <div class="col-span-3 flex items-baseline gap-1">
+              <span class="text-xs font-bold text-slate-800">${d}日</span>
+              <span class="text-[11px] font-semibold ${dowColor}">(${dowStr})</span>
+            </div>
+            <div class="col-span-4 text-center text-xs">${mHtml}</div>
+            <div class="col-span-4 text-center text-xs">${eHtml}</div>
+            <div class="col-span-1 text-right leading-tight">${extraHtml}</div>
+          `;
+
+          // Tap row -> load date into Input view and switch tab
+          row.addEventListener('click', () => {
+            loadDateIntoForm(iso);
+            switchTab('input');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          });
+
+          container.appendChild(row);
+        }
+
+        document.getElementById('list-record-count').textContent = `記録: ${recordedCount} / ${daysInMonth}日`;
+      }
+
+      // ----------------------------------------------------------------------
+      // CSV EXPORT & IMPORT
+      // ----------------------------------------------------------------------
+      function exportToCSV() {
+        const sortedDates = Object.keys(recordsMap).sort();
+        if (sortedDates.length === 0) {
+          showToast('書き出すデータがありません', 'error');
+          return;
+        }
+
+        const header = '日付,曜日,朝１最高,朝１最低,朝２脈拍,朝２最高,朝２最低,朝２脈拍,朝最高平均,朝最低平均,夜１最高,夜１最低,夜２脈拍,夜２最高,夜２最低,夜２脈拍,夜最高平均,夜最低平均,体重,服薬';
+        const rows = sortedDates.map(d => {
+          const r = recordsMap[d];
+          const dateObj = parseDateISO(r.date);
+          const dowStr = WEEKDAYS_JA[dateObj.getDay()];
+          const mAvg = computeSessionSummary(r, 'm');
+          const eAvg = computeSessionSummary(r, 'e');
+
+          return [
+            r.date,
+            dowStr,
+            r.m1_sys ?? '',
+            r.m1_dia ?? '',
+            r.m1_pul ?? '',
+            r.m2_sys ?? '',
+            r.m2_dia ?? '',
+            r.m2_pul ?? '',
+            mAvg.sys ?? '',
+            mAvg.dia ?? '',
+            r.e1_sys ?? '',
+            r.e1_dia ?? '',
+            r.e1_pul ?? '',
+            r.e2_sys ?? '',
+            r.e2_dia ?? '',
+            r.e2_pul ?? '',
+            eAvg.sys ?? '',
+            eAvg.dia ?? '',
+            r.weight ?? '',
+            r.med ? '済' : ''
+          ].join(',');
+        });
+
+        // Add UTF-8 BOM for seamless Japanese Excel compatibility
+        const bom = '\uFEFF';
+        const csvContent = bom + [header, ...rows].join('\r\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `血圧記録_${formatDateISO(new Date())}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        showToast(`${sortedDates.length}日分のCSVを書き出しました`);
+      }
+
+      function importFromCSV(file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const text = e.target.result.replace(/^\uFEFF/, '');
+            const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+            if (lines.length < 2) {
+              showToast('有効なデータ行が見つかりません', 'error');
+              return;
+            }
+
+            let importedCount = 0;
+            const parseNum = (val) => (val === undefined || val === '' || isNaN(Number(val))) ? null : Number(val);
+            const normalizeDate = (raw) => {
+              const m = raw.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+              if (!m) return null;
+              return `${m[1]}-${String(m[2]).padStart(2, '0')}-${String(m[3]).padStart(2, '0')}`;
+            };
+            const parseMed = (raw) => {
+              if (!raw) return false;
+              const v = raw.trim().toLowerCase();
+              return ['済', '1', 'true', '○', 'あり', 'yes'].includes(v);
+            };
+
+            for (let i = 1; i < lines.length; i++) {
+              const cols = lines[i].split(',').map(c => c.trim());
+              const dateStr = normalizeDate(cols[0] || '');
+              if (!dateStr) continue;
+
+              recordsMap[dateStr] = {
+                date: dateStr,
+                m1_sys: parseNum(cols[2]),
+                m1_dia: parseNum(cols[3]),
+                m1_pul: parseNum(cols[4]),
+                m2_sys: parseNum(cols[5]),
+                m2_dia: parseNum(cols[6]),
+                m2_pul: parseNum(cols[7]),
+                e1_sys: parseNum(cols[10]),
+                e1_dia: parseNum(cols[11]),
+                e1_pul: parseNum(cols[12]),
+                e2_sys: parseNum(cols[13]),
+                e2_dia: parseNum(cols[14]),
+                e2_pul: parseNum(cols[15]),
+                weight: parseNum(cols[18]),
+                med: parseMed(cols[19])
+              };
+              importedCount++;
+            }
+
+            if (importedCount === 0) {
+              showToast('日付形式(YYYY-MM-DD / YYYY/MM/DD)が一致する行がありません', 'error');
+              return;
+            }
+
+            saveRecordsToStorage();
+            loadDateIntoForm(document.getElementById('input-date').value);
+            if (activeTab === 'graph') renderGraphView();
+            if (activeTab === 'list') renderListView();
+            document.getElementById('menu-modal').classList.add('hidden');
+            showToast(`${importedCount}日分のCSVデータを取り込みました`);
+          } catch (err) {
+            console.error(err);
+            showToast('CSVの読み込みに失敗しました', 'error');
+          }
+        };
+        reader.readAsText(file, 'UTF-8');
+      }
+
+      // ----------------------------------------------------------------------
+      // A4 1-PAGE PRINT / PDF OUTPUT PREVIEW (31 DAYS FROM START DATE)
+      // ----------------------------------------------------------------------
+      function updatePrintRangePreview() {
+        const startIso = document.getElementById('print-start-date').value;
+        if (!startIso) return;
+        const endIso = addDaysISO(startIso, 30); // 31 days inclusive
+        document.getElementById('print-range-preview').textContent =
+          `対象期間: ${startIso.replace(/-/g, '/')} ～ ${endIso.replace(/-/g, '/')}（31日間）`;
+      }
+
+      function openA4PrintPreview(mode) {
+        const startIso = document.getElementById('print-start-date').value;
+        if (!startIso) {
+          showToast('出力開始日を指定してください', 'error');
+          return;
+        }
+
+        const isGraphMode = mode === 'graph';
+
+        const dynamicPrintStyle = document.getElementById('dynamic-print-style');
+        if (dynamicPrintStyle) {
+          dynamicPrintStyle.textContent = isGraphMode
+            ? `@media print { @page { size: A4 landscape; margin: 8mm 10mm; } #a4-sheet { width: 277mm !important; max-width: 277mm !important; } }`
+            : `@media print { @page { size: A4 portrait; margin: 8mm 10mm; } #a4-sheet { width: 190mm !important; max-width: 190mm !important; } }`;
+        currentPrintLandscape = isGraphMode;
+        }
+
+        const a4Sheet = document.getElementById('a4-sheet');
+        if (isGraphMode) {
+          a4Sheet.classList.remove('w-[210mm]', 'min-h-[297mm]');
+          a4Sheet.classList.add('w-[297mm]', 'min-h-[210mm]');
+        } else {
+          a4Sheet.classList.remove('w-[297mm]', 'min-h-[210mm]');
+          a4Sheet.classList.add('w-[210mm]', 'min-h-[297mm]');
+        }
+
+        const dateList = [];
+        for (let i = 0; i < 31; i++) {
+          dateList.push(addDaysISO(startIso, i));
+        }
+        const endIso = dateList[30];
+
+        document.getElementById('a4-doc-title').textContent =
+          mode === 'list' ? '血圧・脈拍記録一覧表（通院提出用）' : '血圧推移グラフ（通院提出用）';
+        document.getElementById('print-mode-label').textContent =
+          mode === 'list' ? 'A4縦・1枚プレビュー：一覧表' : 'A4横・1枚プレビュー：折れ線グラフ';
+
+        document.getElementById('a4-doc-period').textContent =
+          `対象期間: ${startIso.replace(/-/g, '年').replace('-', '月')}日 ～ ${endIso.replace(/-/g, '年').replace('-', '月')}日（31日間）`;
+        document.getElementById('a4-print-date').textContent = formatDateISO(new Date()).replace(/-/g, '/');
+
+        const stats = buildPeriodData(dateList);
+        document.getElementById('a4-sum-morning').textContent = stats.morningAvg
+          ? `${stats.morningAvg.sys} / ${stats.morningAvg.dia} mmHg (${stats.morningAvg.pul ?? '--'})`
+          : '-- / -- mmHg (--)';
+        document.getElementById('a4-sum-evening').textContent = stats.eveningAvg
+          ? `${stats.eveningAvg.sys} / ${stats.eveningAvg.dia} mmHg (${stats.eveningAvg.pul ?? '--'})`
+          : '-- / -- mmHg (--)';
+        document.getElementById('a4-sum-total').textContent = stats.totalAvg
+          ? `${stats.totalAvg.sys} / ${stats.totalAvg.dia} mmHg (${stats.totalAvg.pul ?? '--'})`
+          : '-- / -- mmHg (--)';
+        document.getElementById('a4-sum-extra').textContent =
+          `${stats.medRate !== null ? stats.medRate + '%' : '--%'} / ${stats.avgWeight ? stats.avgWeight + ' kg' : '-- kg'}`;
+
+        const tableContainer = document.getElementById('a4-table-container');
+        const graphContainer = document.getElementById('a4-graph-container');
+
+        document.getElementById('menu-modal').classList.add('hidden');
+        document.getElementById('print-modal').classList.remove('hidden');
+
+        if (mode === 'list') {
+          tableContainer.classList.remove('hidden');
+          graphContainer.classList.add('hidden');
+          renderA4TableRows(dateList);
+        } else {
+          tableContainer.classList.add('hidden');
+          graphContainer.classList.remove('hidden');
+          if (printChartInstance) printChartInstance.destroy();
+          const canvas = document.getElementById('a4-print-chart');
+          requestAnimationFrame(() => {
+            printChartInstance = createBPChart(canvas, stats, true);
+          });
+        }
+      }
+
+      function printWithA4Viewport() {
+        const meta = document.querySelector('meta[name="viewport"]');
+        if (meta) {
+          if (originalViewportContent === null) originalViewportContent = meta.getAttribute('content');
+          meta.setAttribute('content', 'width=' + (currentPrintLandscape ? 1123 : 794));
+        }
+        setTimeout(() => {
+          if (printChartInstance && currentPrintLandscape) {
+            try { printChartInstance.resize(); } catch (e) {}
+          }
+          setTimeout(() => { window.print(); }, 350);
+        }, 450);
+      }
+
+      function restoreViewportAfterPrint() {
+        const meta = document.querySelector('meta[name="viewport"]');
+        if (meta && originalViewportContent !== null) {
+          meta.setAttribute('content', originalViewportContent);
+          originalViewportContent = null;
+          if (printChartInstance) setTimeout(() => { try { printChartInstance.resize(); } catch (e) {} }, 300);
+        }
+      }
+
+      function renderA4TableRows(dateList) {
+        const tbody = document.getElementById('a4-table-body');
+        tbody.innerHTML = '';
+
+        const fmtTriple = (s, d, p, isAvgCol = false) => {
+          if (s === null && d === null && p === null) return '<span class="text-slate-300">-</span>';
+          const isHigh = (s !== null && s >= 135) || (d !== null && d >= 85);
+          const bpColorClass = isHigh
+            ? 'text-red-600 font-bold'
+            : (isAvgCol ? 'text-slate-900 font-bold' : 'text-slate-900');
+          const sText = s ?? '--';
+          const dText = d ?? '--';
+          return `<span class="${bpColorClass}" style="${isHigh ? 'color:#dc2626;font-weight:700;' : ''}">${sText}/${dText}</span> <span class="text-[8px] text-slate-600 font-normal">(${p ?? '-'})</span>`;
+        };
+
+        dateList.forEach((iso, idx) => {
+          const d = parseDateISO(iso);
+          const dow = d.getDay();
+          const dateLabel = `${d.getMonth() + 1}/${d.getDate()}(${WEEKDAYS_JA[dow]})`;
+          const rec = recordsMap[iso];
+
+          const tr = document.createElement('tr');
+          tr.className = idx % 2 === 1 ? 'bg-slate-50/70' : 'bg-white';
+
+          if (!rec) {
+            tr.innerHTML = `
+              <td class="border border-slate-400 font-semibold">${dateLabel}</td>
+              <td class="border border-slate-400 text-slate-300">-</td>
+              <td class="border border-slate-400 text-slate-300">-</td>
+              <td class="border border-slate-400 bg-amber-50/30 text-slate-300">-</td>
+              <td class="border border-slate-400 text-slate-300">-</td>
+              <td class="border border-slate-400 text-slate-300">-</td>
+              <td class="border border-slate-400 bg-indigo-50/30 text-slate-300">-</td>
+              <td class="border border-slate-400 text-slate-300">-</td>
+              <td class="border border-slate-400 text-slate-300">-</td>
+            `;
+          } else {
+            const mAvg = computeSessionSummary(rec, 'm');
+            const eAvg = computeSessionSummary(rec, 'e');
+
+            tr.innerHTML = `
+              <td class="border border-slate-400 font-semibold">${dateLabel}</td>
+              <td class="border border-slate-400">${fmtTriple(rec.m1_sys, rec.m1_dia, rec.m1_pul, false)}</td>
+              <td class="border border-slate-400">${fmtTriple(rec.m2_sys, rec.m2_dia, rec.m2_pul, false)}</td>
+              <td class="border border-slate-400 bg-amber-50/50">${fmtTriple(mAvg.sys, mAvg.dia, mAvg.pul, true)}</td>
+              <td class="border border-slate-400">${fmtTriple(rec.e1_sys, rec.e1_dia, rec.e1_pul, false)}</td>
+              <td class="border border-slate-400">${fmtTriple(rec.e2_sys, rec.e2_dia, rec.e2_pul, false)}</td>
+              <td class="border border-slate-400 bg-indigo-50/50">${fmtTriple(eAvg.sys, eAvg.dia, eAvg.pul, true)}</td>
+              <td class="border border-slate-400">${rec.weight ?? '-'}</td>
+              <td class="border border-slate-400 font-bold">${rec.med ? '済' : ''}</td>
+            `;
+          }
+
+          tbody.appendChild(tr);
+        });
+      }
+
+      // ----------------------------------------------------------------------
+      // INITIALIZATION & EVENT BINDINGS
+      // ----------------------------------------------------------------------
+      function init() {
+        loadRecords();
+
+        const todayObj = new Date();
+        const todayIso = formatDateISO(todayObj);
+        const currentMonthIso = formatMonthISO(todayObj);
+        const defaultPrintStart = addDaysISO(todayIso, -30);
+
+        document.getElementById('graph-month-picker').value = currentMonthIso;
+        document.getElementById('list-month-picker').value = currentMonthIso;
+        document.getElementById('print-start-date').value = defaultPrintStart;
+        updatePrintRangePreview();
+
+        loadDateIntoForm(todayIso);
+
+        document.querySelectorAll('.nav-tab').forEach(btn => {
+          btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+        });
+
+        document.getElementById('input-date').addEventListener('change', (e) => {
+          if (e.target.value) loadDateIntoForm(e.target.value);
+        });
+        document.getElementById('btn-prev-day').addEventListener('click', () => {
+          const cur = document.getElementById('input-date').value || todayIso;
+          loadDateIntoForm(addDaysISO(cur, -1));
+        });
+        document.getElementById('btn-next-day').addEventListener('click', () => {
+          const cur = document.getElementById('input-date').value || todayIso;
+          loadDateIntoForm(addDaysISO(cur, 1));
+        });
+        document.getElementById('btn-today').addEventListener('click', () => {
+          loadDateIntoForm(formatDateISO(new Date()));
+        });
+
+        inputFields.forEach(id => {
+          document.getElementById(id).addEventListener('input', updateLiveAverages);
+        });
+
+        document.getElementById('btn-save-record').addEventListener('click', handleSaveCurrentForm);
+        document.getElementById('btn-delete-record').addEventListener('click', () => {
+          const curDate = document.getElementById('input-date').value;
+          openConfirm(
+            '記録の削除',
+            `${curDate.replace(/-/g, '/')} の血圧記録を削除しますか？`,
+            () => {
+              delete recordsMap[curDate];
+              saveRecordsToStorage();
+              loadDateIntoForm(curDate);
+              showToast('記録を削除しました');
+            },
+            true
+          );
+        });
+
+        document.getElementById('graph-month-picker').addEventListener('change', renderGraphView);
+        document.getElementById('btn-graph-prev-month').addEventListener('click', () => {
+          const picker = document.getElementById('graph-month-picker');
+          picker.value = shiftMonth(picker.value, -1);
+          renderGraphView();
+        });
+        document.getElementById('btn-graph-next-month').addEventListener('click', () => {
+          const picker = document.getElementById('graph-month-picker');
+          picker.value = shiftMonth(picker.value, 1);
+          renderGraphView();
+        });
+
+        document.getElementById('list-month-picker').addEventListener('change', renderListView);
+        document.getElementById('btn-list-prev-month').addEventListener('click', () => {
+          const picker = document.getElementById('list-month-picker');
+          picker.value = shiftMonth(picker.value, -1);
+          renderListView();
+        });
+        document.getElementById('btn-list-next-month').addEventListener('click', () => {
+          const picker = document.getElementById('list-month-picker');
+          picker.value = shiftMonth(picker.value, 1);
+          renderListView();
+        });
+
+        document.getElementById('btn-open-menu').addEventListener('click', () => {
+          updatePrintRangePreview();
+          document.getElementById('menu-modal').classList.remove('hidden');
+        });
+        document.getElementById('btn-close-menu').addEventListener('click', () => {
+          document.getElementById('menu-modal').classList.add('hidden');
+        });
+        document.getElementById('menu-modal').addEventListener('click', (e) => {
+          if (e.target.id === 'menu-modal') e.target.classList.add('hidden');
+        });
+
+        document.getElementById('print-start-date').addEventListener('change', updatePrintRangePreview);
+        document.getElementById('btn-preview-print-list').addEventListener('click', () => openA4PrintPreview('list'));
+        document.getElementById('btn-preview-print-graph').addEventListener('click', () => openA4PrintPreview('graph'));
+
+        document.getElementById('btn-close-print').addEventListener('click', () => {
+          restoreViewportAfterPrint();
+          document.getElementById('print-modal').classList.add('hidden');
+        });
+        document.getElementById('btn-execute-print').addEventListener('click', printWithA4Viewport);
+        window.addEventListener('afterprint', restoreViewportAfterPrint);
+
+        document.getElementById('btn-export-csv').addEventListener('click', exportToCSV);
+        document.getElementById('input-import-csv').addEventListener('change', (e) => {
+          if (e.target.files && e.target.files[0]) {
+            importFromCSV(e.target.files[0]);
+            e.target.value = '';
+          }
+        });
+
+        document.getElementById('btn-load-sample').addEventListener('click', () => {
+          openConfirm(
+            'サンプルデータの再生成',
+            '直近35日分のダミー血圧データを生成して上書きしますか？',
+            () => {
+              generateRealisticDemoData();
+              loadDateIntoForm(document.getElementById('input-date').value);
+              if (activeTab === 'graph') renderGraphView();
+              if (activeTab === 'list') renderListView();
+              document.getElementById('menu-modal').classList.add('hidden');
+              showToast('サンプルデータを再生成しました');
+            }
+          );
+        });
+
+        document.getElementById('btn-clear-all').addEventListener('click', () => {
+          openConfirm(
+            '全データの消去',
+            '保存されているすべての血圧記録を完全に消去します。よろしいですか？',
+            () => {
+              recordsMap = {};
+              saveRecordsToStorage();
+              loadDateIntoForm(document.getElementById('input-date').value);
+              if (activeTab === 'graph') renderGraphView();
+              if (activeTab === 'list') renderListView();
+              document.getElementById('menu-modal').classList.add('hidden');
+              showToast('すべてのデータを消去しました');
+            },
+            true
+          );
+        });
+
+        document.getElementById('btn-confirm-cancel').addEventListener('click', closeConfirm);
+        document.getElementById('btn-confirm-ok').addEventListener('click', () => {
+          if (confirmCallback) confirmCallback();
+          closeConfirm();
+        });
+
+        // Service Worker Registration for PWA installability
+        if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+          navigator.serviceWorker.register('./sw.js').catch((err) => {
+            console.warn('ServiceWorker registration failed:', err);
+          });
+        }
+      }
+
+      window.addEventListener('DOMContentLoaded', init);
+    })();
+  </script>
+</body>
+</html>

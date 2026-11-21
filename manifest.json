@@ -1,0 +1,25 @@
+{
+  "name": "血圧・脈拍記録帳 - 医療・通院提出用",
+  "short_name": "血圧記録帳",
+  "description": "朝・夜各2回の血圧記録、グラフ表示、CSV入出力、A4印刷・PDF出力対応アプリ",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f4f7f8",
+  "theme_color": "#0f766e",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='192' height='192' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='96' fill='%230f766e'/%3E%3Cpath d='M256 416s-144-92-144-196c0-52 40-92 88-92 32 0 56 20 56 20s24-20 56-20c48 0 88 40 88 92 0 104-144 196-144 196z' fill='%23ffffff'/%3E%3Cpath d='M168 232h44l20-44 32 84 24-40h56' fill='none' stroke='%230f766e' stroke-width='20' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='512' height='512' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='96' fill='%230f766e'/%3E%3Cpath d='M256 416s-144-92-144-196c0-52 40-92 88-92 32 0 56 20 56 20s24-20 56-20c48 0 88 40 88 92 0 104-144 196-144 196z' fill='%23ffffff'/%3E%3Cpath d='M168 232h44l20-44 32 84 24-40h56' fill='none' stroke='%230f766e' stroke-width='20' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
